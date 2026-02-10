@@ -1,460 +1,1182 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { useScrollProgress } from './hooks/useScrollProgress';
-import { ScrollProgressBar } from './components/ScrollProgressBar';
-import { CustomCursor } from './components/CustomCursor';
-import { BicycleSVG } from './components/BicycleSVG';
-import { ParallaxScene } from './components/ParallaxScene';
-import { ParticleTrail } from './components/ParticleTrail';
-import { QuoteBreakdownCards } from './components/QuoteBreakdownCards';
-import { BalancePlayground } from './components/BalancePlayground';
-import { Footer } from './components/Footer';
-
-// Console Easter egg
-console.log('%cKeep moving. 🚲 — Einstein', 'font-size: 16px; color: #f5a623; font-style: italic;');
-
-const QUOTE_WORDS = [
-  { text: '"Life', milestone: 0.05 },
-  { text: 'is just like', milestone: 0.1 },
-  { text: 'riding a bicycle.', milestone: 0.17 },
-  { text: 'In order to balance,', milestone: 0.25 },
-  { text: 'you must keep moving."', milestone: 0.32 },
-];
-
-export function App() {
-  const { progress, velocity, isScrolling, direction } = useScrollProgress();
-
-  // Section-specific progress calculations
-  const heroProgress = Math.min(1, Math.max(0, progress / 0.15));
-  const rideProgress = Math.min(1, Math.max(0, (progress - 0.05) / 0.35));
-  const showcaseProgress = Math.min(1, Math.max(0, (progress - 0.4) / 0.15));
-  const cardsProgress = Math.min(1, Math.max(0, (progress - 0.55) / 0.15));
-  // playgroundProgress available if needed for future enhancements
-  void Math.min(1, Math.max(0, (progress - 0.7) / 0.15));
-
-  // Bicycle state
-  const [bikeAssembled, setBikeAssembled] = useState(false);
-  const [bikeFallen, setBikeFallen] = useState(false);
-  const [wobbleLevel, setWobbleLevel] = useState(0);
-  const [showKeepMoving, setShowKeepMoving] = useState(false);
-  const [showReverse, setShowReverse] = useState(false);
-  const lastScrollTime = useRef(Date.now());
-  const wobbleTimer = useRef<ReturnType<typeof setInterval>>(undefined);
-  const fallTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
-
-  // Assemble animation
-  useEffect(() => {
-    const timer = setTimeout(() => setBikeAssembled(true), 2200);
-    return () => clearTimeout(timer);
-  }, []);
-
-  // Wheel rotation based on velocity
-  const wheelRotation = useRef(0);
-  useEffect(() => {
-    wheelRotation.current += velocity * 2;
-  }, [velocity]);
-
-  // Balance / wobble / fall mechanic
-  useEffect(() => {
-    if (progress < 0.05 || progress > 0.4) return;
-
-    if (isScrolling) {
-      lastScrollTime.current = Date.now();
-      setBikeFallen(false);
-      setWobbleLevel(0);
-      setShowKeepMoving(false);
-
-      if (wobbleTimer.current) clearInterval(wobbleTimer.current);
-      if (fallTimer.current) clearTimeout(fallTimer.current);
-      return;
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Life is Like Riding a Bicycle</title>
+  <style>
+    /* ========== RESET & BASE ========== */
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    :root {
+      --charcoal: #0a0a1a;
+      --dark-blue: #1a1a2e;
+      --mid-blue: #16213e;
+      --warm-white: #f5f0e8;
+      --gold: #f5a623;
+      --sunset: #e94560;
+      --purple: #533483;
     }
 
-    // Not scrolling - start wobble countdown
-    wobbleTimer.current = setInterval(() => {
-      const elapsed = Date.now() - lastScrollTime.current;
+    html { scroll-behavior: smooth; }
+    
+    body {
+      background: var(--charcoal);
+      color: var(--warm-white);
+      font-family: 'Georgia', serif;
+      overflow-x: hidden;
+      cursor: default;
+    }
+
+    /* ========== SCROLL PROGRESS BAR ========== */
+    #progress-bar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--gold), var(--sunset));
+      z-index: 9999;
+      width: 0%;
+      transition: width 0.1s linear;
+    }
+
+    /* ========== SOUND TOGGLE ========== */
+    #sound-btn {
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      z-index: 9999;
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      border: 1px solid rgba(245,240,232,0.2);
+      background: transparent;
+      color: rgba(245,240,232,0.6);
+      font-size: 16px;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    #sound-btn:hover {
+      color: var(--warm-white);
+      border-color: rgba(245,240,232,0.4);
+    }
+
+    /* ========== SECTION 1: HERO ========== */
+    #hero {
+      position: relative;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      background: linear-gradient(180deg, #0a0a1a 0%, #1a1a2e 100%);
+    }
+
+    #road-line {
+      position: absolute;
+      top: 50%;
+      left: 0;
+      right: 0;
+      height: 2px;
+      transform: translateY(-50%);
+      overflow: hidden;
+    }
+    #road-line-inner {
+      height: 100%;
+      background: rgba(245,240,232,0.3);
+      width: 0%;
+      transition: width 1.5s ease-out;
+    }
+
+    #hero-bike {
+      position: relative;
+      z-index: 10;
+      opacity: 0;
+      transform: scale(0.5);
+      transition: opacity 1s ease, transform 1s ease;
+    }
+    #hero-bike.assembled {
+      opacity: 1;
+      transform: scale(1);
+    }
+
+    #scroll-indicator {
+      position: absolute;
+      bottom: 48px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      opacity: 0;
+      transition: opacity 0.5s ease;
+    }
+    #scroll-indicator.visible { opacity: 1; }
+    #scroll-indicator span {
+      color: rgba(245,240,232,0.6);
+      font-size: 14px;
+      font-family: system-ui, sans-serif;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+    }
+
+    @keyframes scrollArrow {
+      0%, 100% { transform: translateY(0); opacity: 0.4; }
+      50% { transform: translateY(8px); opacity: 1; }
+    }
+    #scroll-indicator svg {
+      animation: scrollArrow 2s ease infinite;
+      color: rgba(245,240,232,0.4);
+    }
+
+    /* ========== SECTION 2: THE RIDE ========== */
+    #ride-section {
+      position: relative;
+      height: 300vh;
+      overflow: hidden;
+    }
+
+    #ride-sticky {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* Parallax layers */
+    .parallax-layer {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      pointer-events: none;
+    }
+
+    #sky-layer {
+      top: 0;
+      bottom: 0;
+      background: linear-gradient(180deg, #0a0a1a 0%, #16213e 40%, #1a1a2e 100%);
+      transition: background 0.5s;
+    }
+
+    #stars-layer {
+      top: 0;
+      bottom: 0;
+    }
+
+    .star {
+      position: absolute;
+      background: var(--warm-white);
+      border-radius: 50%;
+      animation: twinkle var(--dur) ease-in-out infinite;
+      animation-delay: var(--delay);
+    }
+
+    @keyframes twinkle {
+      0%, 100% { opacity: 0.3; }
+      50% { opacity: 1; }
+    }
+
+    #mountains-layer {
+      height: 40%;
+      bottom: 10%;
+    }
+
+    #ground-layer {
+      height: 15%;
+      bottom: 0;
+      background: linear-gradient(180deg, #1a1a2e, #0a0a1a);
+    }
+
+    #road-layer {
+      height: 2px;
+      bottom: 12%;
+      background: rgba(245,240,232,0.2);
+    }
+
+    /* Ride bicycle */
+    #ride-bike {
+      position: absolute;
+      z-index: 20;
+      bottom: 12%;
+      transform: translateX(-50%) translateY(25%);
+      transition: left 0.05s linear;
+      will-change: left;
+    }
+
+    /* Wobble animations */
+    @keyframes wobble {
+      0%, 100% { transform: translateX(-50%) translateY(25%) rotate(0deg); }
+      25% { transform: translateX(-50%) translateY(25%) rotate(-3deg); }
+      75% { transform: translateX(-50%) translateY(25%) rotate(3deg); }
+    }
+    @keyframes wobbleHard {
+      0%, 100% { transform: translateX(-50%) translateY(25%) rotate(0deg); }
+      25% { transform: translateX(-50%) translateY(25%) rotate(-8deg); }
+      75% { transform: translateX(-50%) translateY(25%) rotate(8deg); }
+    }
+    @keyframes fallOver {
+      0% { transform: translateX(-50%) translateY(25%) rotate(0deg); }
+      100% { transform: translateX(-50%) translateY(25%) rotate(70deg); }
+    }
+
+    #ride-bike.wobble1 { animation: wobble 0.5s ease infinite; }
+    #ride-bike.wobble2 { animation: wobbleHard 0.3s ease infinite; }
+    #ride-bike.fallen {
+      animation: fallOver 0.5s ease forwards;
+    }
+
+    /* Quote words */
+    #quote-overlay {
+      position: absolute;
+      top: 10%;
+      left: 0;
+      right: 0;
+      z-index: 20;
+      text-align: center;
+      padding: 0 24px;
+    }
+
+    #quote-overlay p {
+      font-style: italic;
+      font-size: clamp(24px, 5vw, 60px);
+      line-height: 1.4;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    .quote-word {
+      display: inline-block;
+      margin-right: 0.3em;
+      opacity: 0;
+      transform: translateY(20px);
+      transition: opacity 0.7s ease, transform 0.7s ease;
+    }
+    .quote-word.revealed {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .quote-word.last-word.revealed {
+      text-shadow: 0 0 30px rgba(245, 166, 35, 0.4);
+    }
+
+    /* Keep moving message */
+    #keep-moving {
+      position: absolute;
+      inset: 0;
+      z-index: 30;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.6s ease;
+    }
+    #keep-moving.visible { opacity: 1; }
+    #keep-moving p {
+      font-style: italic;
+      font-size: 28px;
+      color: var(--sunset);
+    }
+
+    /* Reverse message */
+    #reverse-msg {
+      position: absolute;
+      top: 32px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 30;
+      color: rgba(245,240,232,0.4);
+      font-size: 14px;
+      font-family: system-ui, sans-serif;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    #reverse-msg.visible { opacity: 1; }
+
+    /* Particle trail */
+    .particle {
+      position: absolute;
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 15;
+    }
+
+    /* ========== SECTION 3: SHOWCASE ========== */
+    #showcase {
+      position: relative;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      padding: 80px 24px;
+      background: linear-gradient(180deg, #0a0a1a, #1a1a2e);
+      transition: background 1s ease;
+    }
+
+    .ember {
+      position: absolute;
+      border-radius: 50%;
+      pointer-events: none;
+      background: radial-gradient(circle, var(--gold), var(--sunset));
+      opacity: 0;
+      transition: opacity 1s;
+    }
+
+    @keyframes embers {
+      0% { transform: translateY(0) scale(1); opacity: 0; }
+      20% { opacity: 0.6; }
+      100% { transform: translateY(-80vh) scale(0); opacity: 0; }
+    }
+
+    #showcase-content {
+      position: relative;
+      z-index: 10;
+      text-align: center;
+      max-width: 900px;
+      margin: 0 auto;
+      opacity: 0;
+      transform: translateY(40px);
+      transition: all 0.8s ease;
+    }
+    #showcase-content.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    @keyframes glowPulse {
+      0%, 100% { filter: drop-shadow(0 0 8px rgba(245, 166, 35, 0.3)); }
+      50% { filter: drop-shadow(0 0 20px rgba(245, 166, 35, 0.6)); }
+    }
+
+    #showcase-bike {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 48px;
+      animation: glowPulse 3s ease-in-out infinite;
+    }
+
+    #showcase blockquote {
+      font-style: italic;
+      font-size: clamp(24px, 5vw, 60px);
+      line-height: 1.3;
+      margin-bottom: 32px;
+    }
+
+    .hover-gold:hover { color: var(--gold); }
+    .hover-sunset:hover { color: var(--sunset); }
+    .interactive-word {
+      cursor: pointer;
+      transition: color 0.3s, text-shadow 0.3s;
+    }
+    .interactive-word:hover {
+      text-shadow: 0 0 20px currentColor;
+    }
+
+    #attribution {
+      color: var(--gold);
+      font-size: clamp(16px, 2vw, 20px);
+      font-family: system-ui, sans-serif;
+      font-weight: 300;
+      letter-spacing: 2px;
+      opacity: 0;
+      transition: opacity 0.6s ease 0.3s;
+    }
+    #attribution.visible { opacity: 1; }
+
+    #source-note {
+      color: rgba(245,240,232,0.3);
+      font-size: 12px;
+      font-family: system-ui, sans-serif;
+      margin-top: 8px;
+      opacity: 0;
+      transition: opacity 0.6s ease 0.5s;
+    }
+    #source-note.visible { opacity: 1; }
+
+    /* ========== SECTION 4: BREAKDOWN CARDS ========== */
+    #cards-section {
+      position: relative;
+      padding: 96px 24px;
+      background: linear-gradient(180deg, #0a0a1a 0%, #1a1a2e 100%);
+    }
+
+    #cards-section h2 {
+      text-align: center;
+      font-style: italic;
+      font-size: clamp(20px, 4vw, 36px);
+      margin-bottom: 16px;
+    }
+
+    .section-divider {
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(245,166,35,0.4), transparent);
+      max-width: 200px;
+      margin: 0 auto 64px;
+    }
+
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 24px;
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+
+    .card {
+      background: rgba(245,240,232,0.03);
+      border: 1px solid rgba(245,240,232,0.08);
+      border-radius: 16px;
+      padding: 32px;
+      text-align: center;
+      opacity: 0;
+      transform: translateY(30px);
+      transition: all 0.6s ease, border-color 0.3s, box-shadow 0.3s;
+    }
+    .card.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .card:hover {
+      border-color: rgba(245,166,35,0.3);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+      transform: translateY(-4px);
+    }
+
+    .card-icon {
+      font-size: 48px;
+      margin-bottom: 16px;
+    }
+
+    .card-word {
+      font-style: italic;
+      font-size: 24px;
+      margin-bottom: 12px;
+      color: var(--gold);
+    }
+
+    .card-desc {
+      font-family: system-ui, sans-serif;
+      font-size: 14px;
+      line-height: 1.6;
+      color: rgba(245,240,232,0.6);
+    }
+
+    /* ========== SECTION 5: BALANCE PLAYGROUND ========== */
+    #playground {
+      position: relative;
+      padding: 96px 24px;
+      background: linear-gradient(180deg, #1a1a2e 0%, #16213e 50%, #1a1a2e 100%);
+    }
+
+    #playground-inner {
+      max-width: 600px;
+      margin: 0 auto;
+      text-align: center;
+    }
+
+    #playground h2 {
+      font-style: italic;
+      font-size: clamp(20px, 4vw, 32px);
+      margin-bottom: 8px;
+    }
+
+    #playground .subtitle {
+      font-family: system-ui, sans-serif;
+      font-size: 14px;
+      color: rgba(245,240,232,0.4);
+      margin-bottom: 48px;
+    }
+
+    #balance-bar-container {
+      position: relative;
+      width: 100%;
+      height: 8px;
+      background: rgba(245,240,232,0.1);
+      border-radius: 4px;
+      margin-bottom: 32px;
+      cursor: pointer;
+    }
+
+    #balance-indicator {
+      position: absolute;
+      top: 50%;
+      width: 24px;
+      height: 24px;
+      background: var(--gold);
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      transition: left 0.15s ease-out, background 0.3s;
+      box-shadow: 0 0 15px rgba(245,166,35,0.4);
+    }
+
+    #balance-indicator.off-center {
+      background: var(--sunset);
+      box-shadow: 0 0 15px rgba(233,69,96,0.4);
+    }
+
+    #balance-message {
+      font-style: italic;
+      font-size: 20px;
+      min-height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: opacity 0.3s;
+    }
+
+    #balance-bike-container {
+      margin-top: 32px;
+      transition: transform 0.15s ease-out;
+    }
+
+    /* ========== FOOTER ========== */
+    footer {
+      background: linear-gradient(180deg, #1a1a2e 0%, #0a0a1a 100%);
+      padding: 64px 24px;
+      text-align: center;
+    }
+
+    footer .divider {
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(245,240,232,0.1), transparent);
+      max-width: 300px;
+      margin: 0 auto 32px;
+    }
+
+    footer .final-quote {
+      font-style: italic;
+      font-size: 18px;
+      color: rgba(245,240,232,0.4);
+      margin-bottom: 24px;
+    }
+
+    footer .credits {
+      font-family: system-ui, sans-serif;
+      font-size: 12px;
+      color: rgba(245,240,232,0.2);
+      line-height: 1.8;
+    }
+
+    footer .heart { color: var(--sunset); }
+
+    #back-to-top {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 24px;
+      padding: 8px 20px;
+      border: 1px solid rgba(245,240,232,0.15);
+      border-radius: 20px;
+      background: transparent;
+      color: rgba(245,240,232,0.4);
+      font-family: system-ui, sans-serif;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    #back-to-top:hover {
+      color: var(--warm-white);
+      border-color: rgba(245,240,232,0.3);
+    }
+
+    /* ========== BICYCLE SVG STYLES ========== */
+    .bike-svg {
+      overflow: visible;
+    }
+    .bike-svg .frame { stroke: var(--gold); fill: none; stroke-width: 2; stroke-linecap: round; }
+    .bike-svg .wheel { stroke: var(--warm-white); fill: none; stroke-width: 1.5; }
+    .bike-svg .spoke { stroke: rgba(245,240,232,0.3); stroke-width: 0.5; }
+    .bike-svg .handlebar { stroke: var(--warm-white); fill: none; stroke-width: 1.5; stroke-linecap: round; }
+    .bike-svg .seat { stroke: var(--warm-white); fill: none; stroke-width: 1.5; stroke-linecap: round; }
+    .bike-svg .pedal { fill: rgba(245,240,232,0.6); }
+
+    /* ========== RESPONSIVE ========== */
+    @media (max-width: 768px) {
+      .cards-grid {
+        grid-template-columns: 1fr;
+        max-width: 400px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Progress Bar -->
+  <div id="progress-bar"></div>
+
+  <!-- Sound Toggle -->
+  <button id="sound-btn" aria-label="Toggle sound">🔇</button>
+
+  <!-- ==================== SECTION 1: HERO ==================== -->
+  <section id="hero">
+    <div id="road-line">
+      <div id="road-line-inner"></div>
+    </div>
+
+    <div id="hero-bike">
+      <svg class="bike-svg" width="120" height="80" viewBox="0 0 120 80">
+        <circle class="wheel" cx="25" cy="55" r="18"/>
+        <circle class="wheel" cx="95" cy="55" r="18"/>
+        <line class="spoke" x1="25" y1="37" x2="25" y2="73"/>
+        <line class="spoke" x1="7" y1="55" x2="43" y2="55"/>
+        <line class="spoke" x1="13" y1="43" x2="37" y2="67"/>
+        <line class="spoke" x1="37" y1="43" x2="13" y2="67"/>
+        <line class="spoke" x1="95" y1="37" x2="95" y2="73"/>
+        <line class="spoke" x1="77" y1="55" x2="113" y2="55"/>
+        <line class="spoke" x1="83" y1="43" x2="107" y2="67"/>
+        <line class="spoke" x1="107" y1="43" x2="83" y2="67"/>
+        <polyline class="frame" points="25,55 55,30 95,55"/>
+        <line class="frame" x1="55" y1="30" x2="55" y2="55"/>
+        <polyline class="handlebar" points="85,20 95,25 95,35"/>
+        <polyline class="seat" points="48,28 62,28"/>
+        <circle class="pedal" cx="55" cy="58" r="3"/>
+      </svg>
+    </div>
+
+    <div id="scroll-indicator">
+      <span>Scroll to ride</span>
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <path d="M12 5v14M5 12l7 7 7-7"/>
+      </svg>
+    </div>
+  </section>
+
+  <!-- ==================== SECTION 2: THE RIDE ==================== -->
+  <section id="ride-section">
+    <div id="ride-sticky">
+      <!-- Sky -->
+      <div id="sky-layer" class="parallax-layer"></div>
+      
+      <!-- Stars -->
+      <div id="stars-layer" class="parallax-layer"></div>
+
+      <!-- Mountains -->
+      <div id="mountains-layer" class="parallax-layer">
+        <svg width="100%" height="100%" viewBox="0 0 1440 300" preserveAspectRatio="none">
+          <polygon fill="#16213e" points="0,300 200,80 400,200 600,50 800,180 1000,30 1200,150 1440,60 1440,300"/>
+          <polygon fill="#1a1a2e" opacity="0.6" points="0,300 150,150 350,250 550,100 750,220 950,80 1150,200 1440,120 1440,300"/>
+        </svg>
+      </div>
+
+      <!-- Ground -->
+      <div id="ground-layer" class="parallax-layer"></div>
+
+      <!-- Road -->
+      <div id="road-layer" class="parallax-layer"></div>
+
+      <!-- Bicycle -->
+      <div id="ride-bike">
+        <svg class="bike-svg" width="90" height="60" viewBox="0 0 120 80">
+          <g id="rear-wheel">
+            <circle class="wheel" cx="25" cy="55" r="18"/>
+            <line class="spoke" x1="25" y1="37" x2="25" y2="73"/>
+            <line class="spoke" x1="7" y1="55" x2="43" y2="55"/>
+            <line class="spoke" x1="13" y1="43" x2="37" y2="67"/>
+            <line class="spoke" x1="37" y1="43" x2="13" y2="67"/>
+          </g>
+          <g id="front-wheel">
+            <circle class="wheel" cx="95" cy="55" r="18"/>
+            <line class="spoke" x1="95" y1="37" x2="95" y2="73"/>
+            <line class="spoke" x1="77" y1="55" x2="113" y2="55"/>
+            <line class="spoke" x1="83" y1="43" x2="107" y2="67"/>
+            <line class="spoke" x1="107" y1="43" x2="83" y2="67"/>
+          </g>
+          <polyline class="frame" points="25,55 55,30 95,55"/>
+          <line class="frame" x1="55" y1="30" x2="55" y2="55"/>
+          <polyline class="handlebar" points="85,20 95,25 95,35"/>
+          <polyline class="seat" points="48,28 62,28"/>
+          <circle class="pedal" cx="55" cy="58" r="3"/>
+        </svg>
+      </div>
+
+      <!-- Quote words -->
+      <div id="quote-overlay">
+        <p>
+          <span class="quote-word" data-milestone="0.05">"Life</span>
+          <span class="quote-word" data-milestone="0.10">is just like</span>
+          <span class="quote-word" data-milestone="0.17">riding a bicycle.</span>
+          <span class="quote-word" data-milestone="0.25">In order to balance,</span>
+          <span class="quote-word last-word" data-milestone="0.32">you must keep moving."</span>
+        </p>
+      </div>
+
+      <!-- Keep moving message -->
+      <div id="keep-moving">
+        <p>Keep moving...</p>
+      </div>
+
+      <!-- Reverse message -->
+      <div id="reverse-msg">🔄 Going back?</div>
+
+      <!-- Particles container -->
+      <div id="particles"></div>
+    </div>
+  </section>
+
+  <!-- ==================== SECTION 3: SHOWCASE ==================== -->
+  <section id="showcase">
+    <div id="embers-container"></div>
+
+    <div id="showcase-content">
+      <div id="showcase-bike">
+        <svg class="bike-svg" width="180" height="120" viewBox="0 0 120 80">
+          <circle class="wheel" cx="25" cy="55" r="18"/>
+          <circle class="wheel" cx="95" cy="55" r="18"/>
+          <line class="spoke" x1="25" y1="37" x2="25" y2="73"/>
+          <line class="spoke" x1="7" y1="55" x2="43" y2="55"/>
+          <line class="spoke" x1="13" y1="43" x2="37" y2="67"/>
+          <line class="spoke" x1="37" y1="43" x2="13" y2="67"/>
+          <line class="spoke" x1="95" y1="37" x2="95" y2="73"/>
+          <line class="spoke" x1="77" y1="55" x2="113" y2="55"/>
+          <line class="spoke" x1="83" y1="43" x2="107" y2="67"/>
+          <line class="spoke" x1="107" y1="43" x2="83" y2="67"/>
+          <polyline class="frame" points="25,55 55,30 95,55"/>
+          <line class="frame" x1="55" y1="30" x2="55" y2="55"/>
+          <polyline class="handlebar" points="85,20 95,25 95,35"/>
+          <polyline class="seat" points="48,28 62,28"/>
+          <circle class="pedal" cx="55" cy="58" r="3"/>
+        </svg>
+      </div>
+
+      <blockquote>
+        <span>&ldquo;</span><span class="interactive-word hover-gold">Life</span> is just like riding a <span class="interactive-word hover-gold">bicycle</span>.<br/>
+        In order to <span class="interactive-word hover-sunset">balance</span>,<br/>
+        you must keep <span class="interactive-word hover-gold">moving</span>.&rdquo;
+      </blockquote>
+
+      <p id="attribution">— Albert Einstein</p>
+      <p id="source-note">From a letter to his son Eduard, February 5, 1930</p>
+    </div>
+  </section>
+
+  <!-- ==================== SECTION 4: BREAKDOWN CARDS ==================== -->
+  <section id="cards-section">
+    <h2>Four words. One truth.</h2>
+    <div class="section-divider"></div>
+
+    <div class="cards-grid">
+      <div class="card" data-delay="0">
+        <div class="card-icon">🌱</div>
+        <div class="card-word">Life</div>
+        <p class="card-desc">The journey itself is the destination. Every pedal stroke counts, every moment matters. Life isn't waiting at the finish line.</p>
+      </div>
+      <div class="card" data-delay="150">
+        <div class="card-icon">🚲</div>
+        <div class="card-word">Bicycle</div>
+        <p class="card-desc">Simple. Elegant. Human-powered. A bicycle moves forward only through your own effort — just like everything worthwhile.</p>
+      </div>
+      <div class="card" data-delay="300">
+        <div class="card-icon">⚖️</div>
+        <div class="card-word">Balance</div>
+        <p class="card-desc">Not a state you achieve, but a continuous act. You don't find balance — you create it, moment by moment, adjustment by adjustment.</p>
+      </div>
+      <div class="card" data-delay="450">
+        <div class="card-icon">🌊</div>
+        <div class="card-word">Moving</div>
+        <p class="card-desc">Stillness is the enemy of stability. Progress doesn't require speed — it requires motion. Keep moving, however slowly.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== SECTION 5: BALANCE PLAYGROUND ==================== -->
+  <section id="playground">
+    <div id="playground-inner">
+      <h2>Find your balance</h2>
+      <p class="subtitle">Move your mouse (or finger) across the bar</p>
+
+      <div id="balance-bar-container">
+        <div id="balance-indicator" style="left: 50%;"></div>
+      </div>
+
+      <div id="balance-message">⚖️ Perfectly balanced</div>
+
+      <div id="balance-bike-container">
+        <svg class="bike-svg" width="120" height="80" viewBox="0 0 120 80">
+          <circle class="wheel" cx="25" cy="55" r="18"/>
+          <circle class="wheel" cx="95" cy="55" r="18"/>
+          <line class="spoke" x1="25" y1="37" x2="25" y2="73"/>
+          <line class="spoke" x1="7" y1="55" x2="43" y2="55"/>
+          <line class="spoke" x1="13" y1="43" x2="37" y2="67"/>
+          <line class="spoke" x1="37" y1="43" x2="13" y2="67"/>
+          <line class="spoke" x1="95" y1="37" x2="95" y2="73"/>
+          <line class="spoke" x1="77" y1="55" x2="113" y2="55"/>
+          <line class="spoke" x1="83" y1="43" x2="107" y2="67"/>
+          <line class="spoke" x1="107" y1="43" x2="83" y2="67"/>
+          <polyline class="frame" points="25,55 55,30 95,55"/>
+          <line class="frame" x1="55" y1="30" x2="55" y2="55"/>
+          <polyline class="handlebar" points="85,20 95,25 95,35"/>
+          <polyline class="seat" points="48,28 62,28"/>
+          <circle class="pedal" cx="55" cy="58" r="3"/>
+        </svg>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== FOOTER ==================== -->
+  <footer>
+    <div class="divider"></div>
+    <p class="final-quote">"Keep moving." 🚲</p>
+    <div class="credits">
+      <p>Built with <span class="heart">♥</span> and forward momentum</p>
+      <p>Quote by Albert Einstein, 1930</p>
+    </div>
+    <button id="back-to-top">↑ Back to top</button>
+  </footer>
+
+  <!-- ==================== JAVASCRIPT ==================== -->
+  <script>
+    // Console Easter Egg
+    console.log('%cKeep moving. 🚲 — Einstein', 'font-size: 16px; color: #f5a623; font-style: italic;');
+
+    // ========== STATE ==========
+    let scrollProgress = 0;
+    let lastScroll = 0;
+    let scrollVelocity = 0;
+    let isScrolling = false;
+    let scrollDirection = 'forward';
+    let scrollTimeout = null;
+    let lastScrollTime = Date.now();
+    let wobbleLevel = 0;
+    let bikeFallen = false;
+    let wheelRotation = 0;
+    let soundEnabled = false;
+    let audioCtx = null;
+    let oscillator = null;
+    let gainNode = null;
+
+    // ========== DOM ELEMENTS ==========
+    const progressBar = document.getElementById('progress-bar');
+    const soundBtn = document.getElementById('sound-btn');
+    const heroBike = document.getElementById('hero-bike');
+    const roadLineInner = document.getElementById('road-line-inner');
+    const scrollIndicator = document.getElementById('scroll-indicator');
+    const rideBike = document.getElementById('ride-bike');
+    const quoteWords = document.querySelectorAll('.quote-word');
+    const keepMovingEl = document.getElementById('keep-moving');
+    const reverseMsgEl = document.getElementById('reverse-msg');
+    const rearWheel = document.getElementById('rear-wheel');
+    const frontWheel = document.getElementById('front-wheel');
+    const showcaseEl = document.getElementById('showcase');
+    const showcaseContent = document.getElementById('showcase-content');
+    const attributionEl = document.getElementById('attribution');
+    const sourceNote = document.getElementById('source-note');
+    const cards = document.querySelectorAll('.card');
+    const balanceBar = document.getElementById('balance-bar-container');
+    const balanceIndicator = document.getElementById('balance-indicator');
+    const balanceMessage = document.getElementById('balance-message');
+    const balanceBikeContainer = document.getElementById('balance-bike-container');
+    const backToTop = document.getElementById('back-to-top');
+    const particlesContainer = document.getElementById('particles');
+
+    // ========== GENERATE STARS ==========
+    const starsLayer = document.getElementById('stars-layer');
+    for (let i = 0; i < 80; i++) {
+      const star = document.createElement('div');
+      star.className = 'star';
+      const size = 1 + Math.random() * 2;
+      star.style.cssText = `
+        width: ${size}px;
+        height: ${size}px;
+        left: ${Math.random() * 100}%;
+        top: ${Math.random() * 60}%;
+        --dur: ${2 + Math.random() * 3}s;
+        --delay: ${Math.random() * 5}s;
+      `;
+      starsLayer.appendChild(star);
+    }
+
+    // ========== GENERATE EMBERS ==========
+    const embersContainer = document.getElementById('embers-container');
+    for (let i = 0; i < 20; i++) {
+      const ember = document.createElement('div');
+      ember.className = 'ember';
+      const size = 2 + Math.random() * 4;
+      ember.style.cssText = `
+        width: ${size}px;
+        height: ${size}px;
+        left: ${Math.random() * 100}%;
+        bottom: 10%;
+        animation: embers ${3 + Math.random() * 4}s ease-in-out infinite;
+        animation-delay: ${Math.random() * 5}s;
+      `;
+      embersContainer.appendChild(ember);
+    }
+
+    // ========== HERO ASSEMBLY ==========
+    setTimeout(() => {
+      heroBike.classList.add('assembled');
+      roadLineInner.style.width = '100%';
+      setTimeout(() => {
+        scrollIndicator.classList.add('visible');
+      }, 1000);
+    }, 800);
+
+    // ========== SCROLL HANDLER ==========
+    let prevScrollY = 0;
+    let velocitySmooth = 0;
+
+    function onScroll() {
+      const scrollY = window.scrollY;
+      const maxScroll = document.body.scrollHeight - window.innerHeight;
+      scrollProgress = maxScroll > 0 ? scrollY / maxScroll : 0;
+
+      // Velocity
+      const rawVelocity = Math.abs(scrollY - prevScrollY);
+      velocitySmooth = velocitySmooth * 0.8 + rawVelocity * 0.2;
+      scrollVelocity = velocitySmooth;
+
+      // Direction
+      scrollDirection = scrollY >= prevScrollY ? 'forward' : 'backward';
+      prevScrollY = scrollY;
+
+      // Is scrolling
+      isScrolling = true;
+      lastScrollTime = Date.now();
+      clearTimeout(scrollTimeout);
+      scrollTimeout = setTimeout(() => { isScrolling = false; }, 150);
+
+      // Update everything
+      updateProgressBar();
+      updateHero();
+      updateRide();
+      updateShowcase();
+      updateCards();
+      updateSound();
+    }
+
+    window.addEventListener('scroll', onScroll, { passive: true });
+
+    // ========== PROGRESS BAR ==========
+    function updateProgressBar() {
+      progressBar.style.width = (scrollProgress * 100) + '%';
+    }
+
+    // ========== HERO UPDATES ==========
+    function updateHero() {
+      const heroP = Math.min(1, Math.max(0, scrollProgress / 0.15));
+      heroBike.style.opacity = heroP < 0.8 ? 1 : Math.max(0, 1 - (heroP - 0.8) * 5);
+      scrollIndicator.classList.toggle('visible', scrollProgress < 0.02);
+    }
+
+    // ========== RIDE UPDATES ==========
+    function updateRide() {
+      const rideP = Math.min(1, Math.max(0, (scrollProgress - 0.05) / 0.35));
+
+      // Bike position
+      const bikeX = 10 + rideP * 75;
+      rideBike.style.left = bikeX + '%';
+
+      // Wheel rotation
+      wheelRotation += scrollVelocity * 2;
+      if (rearWheel) rearWheel.style.transform = `rotate(${wheelRotation}deg)`;
+      if (frontWheel) frontWheel.style.transform = `rotate(${wheelRotation}deg)`;
+      rearWheel.setAttribute('transform-origin', '25 55');
+      frontWheel.setAttribute('transform-origin', '95 55');
+      rearWheel.style.transformOrigin = '25px 55px';
+      frontWheel.style.transformOrigin = '95px 55px';
+
+      // Quote words
+      quoteWords.forEach(word => {
+        const milestone = parseFloat(word.dataset.milestone);
+        word.classList.toggle('revealed', scrollProgress >= milestone);
+      });
+
+      // Parallax
+      const mountainsLayer = document.getElementById('mountains-layer');
+      if (mountainsLayer) {
+        mountainsLayer.style.transform = `translateX(${-rideP * 30}%)`;
+      }
+
+      // Wobble / fall logic
+      if (scrollProgress >= 0.05 && scrollProgress <= 0.4) {
+        if (isScrolling) {
+          bikeFallen = false;
+          wobbleLevel = 0;
+          rideBike.className = '';
+          keepMovingEl.classList.remove('visible');
+        }
+
+        // Reverse easter egg
+        reverseMsgEl.classList.toggle('visible', scrollDirection === 'backward' && !isScrolling);
+      } else {
+        reverseMsgEl.classList.remove('visible');
+      }
+
+      // Particles
+      if (isScrolling && rideP > 0 && rideP < 1) {
+        spawnParticle(bikeX);
+      }
+    }
+
+    // ========== WOBBLE TIMER ==========
+    setInterval(() => {
+      if (scrollProgress < 0.05 || scrollProgress > 0.4) return;
+      if (isScrolling) return;
+
+      const elapsed = Date.now() - lastScrollTime;
       if (elapsed > 2000 && elapsed <= 4000) {
-        setWobbleLevel(1);
+        wobbleLevel = 1;
+        rideBike.className = 'wobble1';
       } else if (elapsed > 4000 && elapsed <= 5000) {
-        setWobbleLevel(2);
-      } else if (elapsed > 5000) {
-        setWobbleLevel(0);
-        setBikeFallen(true);
-        setShowKeepMoving(true);
-        if (wobbleTimer.current) clearInterval(wobbleTimer.current);
+        wobbleLevel = 2;
+        rideBike.className = 'wobble2';
+      } else if (elapsed > 5000 && !bikeFallen) {
+        wobbleLevel = 0;
+        bikeFallen = true;
+        rideBike.className = 'fallen';
+        keepMovingEl.classList.add('visible');
       }
     }, 100);
 
-    return () => {
-      if (wobbleTimer.current) clearInterval(wobbleTimer.current);
-      if (fallTimer.current) clearTimeout(fallTimer.current);
-    };
-  }, [isScrolling, progress]);
+    // ========== PARTICLES ==========
+    function spawnParticle(bikeX) {
+      if (Math.random() > 0.3) return;
+      const p = document.createElement('div');
+      p.className = 'particle';
+      const size = 2 + Math.random() * 4;
+      const colors = ['#f5a623', '#e94560', '#f5f0e8'];
+      const color = colors[Math.floor(Math.random() * colors.length)];
+      p.style.cssText = `
+        width: ${size}px;
+        height: ${size}px;
+        background: ${color};
+        left: ${bikeX}%;
+        bottom: 14%;
+        opacity: 0.8;
+        transition: all ${0.5 + Math.random() * 0.5}s ease-out;
+      `;
+      particlesContainer.appendChild(p);
 
-  // Reverse easter egg
-  useEffect(() => {
-    if (direction === 'backward' && progress > 0.05 && progress < 0.4) {
-      setShowReverse(true);
-    } else {
-      setShowReverse(false);
+      requestAnimationFrame(() => {
+        p.style.transform = `translate(${-20 - Math.random() * 30}px, ${-Math.random() * 40}px)`;
+        p.style.opacity = '0';
+      });
+
+      setTimeout(() => p.remove(), 1000);
     }
-  }, [direction, progress]);
 
-  // Revealed words based on scroll progress
-  const revealedWords = useMemo(() => {
-    return QUOTE_WORDS.filter(w => progress >= w.milestone);
-  }, [progress]);
+    // ========== SHOWCASE ==========
+    function updateShowcase() {
+      const sP = Math.min(1, Math.max(0, (scrollProgress - 0.4) / 0.15));
 
-  // Bicycle position during ride
-  const bikeX = useMemo(() => {
-    if (rideProgress <= 0) return 10;
-    if (rideProgress >= 1) return 85;
-    return 10 + rideProgress * 75;
-  }, [rideProgress]);
+      if (sP > 0.3) {
+        showcaseEl.style.background = `linear-gradient(180deg, #16213e 0%, #533483 40%, #e94560 80%, #f5a623 100%)`;
+        document.querySelectorAll('.ember').forEach(e => e.style.opacity = '0.6');
+      } else {
+        showcaseEl.style.background = `linear-gradient(180deg, #0a0a1a, #1a1a2e)`;
+        document.querySelectorAll('.ember').forEach(e => e.style.opacity = '0');
+      }
 
-  // Wobble style
-  const wobbleStyle = useMemo(() => {
-    if (bikeFallen) return {};
-    if (wobbleLevel === 2) return { animation: 'wobbleHard 0.3s ease infinite' };
-    if (wobbleLevel === 1) return { animation: 'wobble 0.5s ease infinite' };
-    return {};
-  }, [wobbleLevel, bikeFallen]);
+      showcaseContent.classList.toggle('visible', sP > 0.2);
+      attributionEl.classList.toggle('visible', sP > 0.5);
+      sourceNote.classList.toggle('visible', sP > 0.6);
+    }
 
-  // Keyboard support
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
+    // ========== CARDS (Intersection Observer) ==========
+    const cardObserver = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          const delay = parseInt(entry.target.dataset.delay) || 0;
+          setTimeout(() => {
+            entry.target.classList.add('visible');
+          }, delay);
+        }
+      });
+    }, { threshold: 0.2 });
+
+    cards.forEach(card => cardObserver.observe(card));
+
+    // ========== BALANCE PLAYGROUND ==========
+    let balanceValue = 0.5;
+
+    function updateBalance(clientX) {
+      const rect = balanceBar.getBoundingClientRect();
+      const x = (clientX - rect.left) / rect.width;
+      balanceValue = Math.max(0, Math.min(1, x));
+
+      balanceIndicator.style.left = (balanceValue * 100) + '%';
+
+      const offset = Math.abs(balanceValue - 0.5);
+      const isCenter = offset < 0.05;
+      const isFar = offset > 0.3;
+
+      balanceIndicator.classList.toggle('off-center', !isCenter);
+
+      if (isCenter) {
+        balanceMessage.textContent = '⚖️ Perfectly balanced';
+        balanceMessage.style.color = 'var(--gold)';
+      } else if (isFar) {
+        balanceMessage.textContent = '😰 Too far! Find center...';
+        balanceMessage.style.color = 'var(--sunset)';
+      } else {
+        balanceMessage.textContent = '🚲 Keep adjusting...';
+        balanceMessage.style.color = 'var(--warm-white)';
+      }
+
+      const tilt = (balanceValue - 0.5) * 30;
+      balanceBikeContainer.style.transform = `rotate(${tilt}deg)`;
+    }
+
+    balanceBar.addEventListener('mousemove', e => updateBalance(e.clientX));
+    balanceBar.addEventListener('touchmove', e => {
+      e.preventDefault();
+      updateBalance(e.touches[0].clientX);
+    }, { passive: false });
+    balanceBar.addEventListener('click', e => updateBalance(e.clientX));
+
+    // ========== SOUND ==========
+    soundBtn.addEventListener('click', () => {
+      if (!soundEnabled) {
+        try {
+          audioCtx = new AudioContext();
+          oscillator = audioCtx.createOscillator();
+          gainNode = audioCtx.createGain();
+          oscillator.type = 'sine';
+          oscillator.frequency.value = 220;
+          gainNode.gain.value = 0.02;
+          oscillator.connect(gainNode);
+          gainNode.connect(audioCtx.destination);
+          oscillator.start();
+          soundEnabled = true;
+          soundBtn.textContent = '🔊';
+        } catch(e) {}
+      } else {
+        oscillator?.stop();
+        audioCtx?.close();
+        audioCtx = null;
+        oscillator = null;
+        gainNode = null;
+        soundEnabled = false;
+        soundBtn.textContent = '🔇';
+      }
+    });
+
+    function updateSound() {
+      if (!soundEnabled || !gainNode || !oscillator) return;
+      const vol = isScrolling ? 0.02 + Math.min(scrollVelocity * 0.005, 0.05) : 0.005;
+      gainNode.gain.linearRampToValueAtTime(vol, audioCtx.currentTime + 0.1);
+      oscillator.frequency.linearRampToValueAtTime(180 + scrollVelocity * 20, audioCtx.currentTime + 0.1);
+    }
+
+    // ========== BACK TO TOP ==========
+    backToTop.addEventListener('click', () => {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+
+    // ========== KEYBOARD SUPPORT ==========
+    document.addEventListener('keydown', e => {
       if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
         window.scrollBy({ top: 100, behavior: 'smooth' });
       } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
         window.scrollBy({ top: -100, behavior: 'smooth' });
       }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
-
-  // Embers/fireflies for showcase section
-  const [embers] = useState(() =>
-    Array.from({ length: 20 }, (_, i) => ({
-      id: i,
-      left: Math.random() * 100,
-      delay: Math.random() * 5,
-      duration: 3 + Math.random() * 4,
-      size: 2 + Math.random() * 4,
-    }))
-  );
-
-  // Sound state
-  const [soundEnabled, setSoundEnabled] = useState(false);
-  const audioCtxRef = useRef<AudioContext | null>(null);
-  const oscillatorRef = useRef<OscillatorNode | null>(null);
-  const gainRef = useRef<GainNode | null>(null);
-
-  const toggleSound = useCallback(() => {
-    if (!soundEnabled) {
-      try {
-        const ctx = new AudioContext();
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'sine';
-        osc.frequency.value = 220;
-        gain.gain.value = 0.02;
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start();
-        audioCtxRef.current = ctx;
-        oscillatorRef.current = osc;
-        gainRef.current = gain;
-        setSoundEnabled(true);
-      } catch {
-        // Web Audio not supported
-      }
-    } else {
-      oscillatorRef.current?.stop();
-      audioCtxRef.current?.close();
-      audioCtxRef.current = null;
-      oscillatorRef.current = null;
-      gainRef.current = null;
-      setSoundEnabled(false);
-    }
-  }, [soundEnabled]);
-
-  // Modulate sound with scroll
-  useEffect(() => {
-    if (soundEnabled && gainRef.current && oscillatorRef.current) {
-      const vol = isScrolling ? 0.02 + Math.min(velocity * 0.005, 0.05) : 0.005;
-      gainRef.current.gain.linearRampToValueAtTime(vol, (audioCtxRef.current?.currentTime ?? 0) + 0.1);
-      oscillatorRef.current.frequency.linearRampToValueAtTime(
-        180 + velocity * 20,
-        (audioCtxRef.current?.currentTime ?? 0) + 0.1
-      );
-    }
-  }, [soundEnabled, isScrolling, velocity]);
-
-  return (
-    <div className="relative bg-charcoal min-h-screen">
-      <CustomCursor />
-      <ScrollProgressBar progress={progress} />
-
-      {/* Sound toggle */}
-      <button
-        onClick={toggleSound}
-        className="fixed top-4 right-4 z-50 w-10 h-10 flex items-center justify-center rounded-full border border-warm-white/20 text-warm-white/60 hover:text-warm-white hover:border-warm-white/40 transition-all text-sm interactive print:hidden"
-        aria-label={soundEnabled ? 'Mute sound' : 'Enable sound'}
-      >
-        {soundEnabled ? '🔊' : '🔇'}
-      </button>
-
-      {/* ===================== SECTION 1: HERO / INTRO ===================== */}
-      <section
-        className="relative h-screen flex flex-col items-center justify-center overflow-hidden"
-        aria-label="Introduction"
-        style={{
-          background: 'linear-gradient(180deg, #0a0a1a 0%, #1a1a2e 100%)',
-        }}
-      >
-        {/* Road line draws itself */}
-        <div className="absolute top-1/2 left-0 right-0 h-[2px] -translate-y-1/2 overflow-hidden">
-          <div
-            className="h-full bg-warm-white/30"
-            style={{
-              width: bikeAssembled ? '100%' : '0%',
-              transition: 'width 1.5s ease-out',
-            }}
-          />
-        </div>
-
-        {/* Bicycle assembles */}
-        <div
-          className="relative z-10"
-          style={{
-            opacity: heroProgress < 0.8 ? 1 : 1 - (heroProgress - 0.8) * 5,
-          }}
-        >
-          <BicycleSVG animate={true} wheelRotation={0} />
-        </div>
-
-        {/* Scroll indicator */}
-        <div
-          className="absolute bottom-12 flex flex-col items-center gap-3"
-          style={{
-            opacity: bikeAssembled ? (progress < 0.02 ? 1 : 0) : 0,
-            transition: 'opacity 0.5s ease',
-          }}
-        >
-          <span className="text-warm-white/60 text-sm font-sans tracking-widest uppercase">
-            Scroll to ride
-          </span>
-          <svg
-            width="24" height="24" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" strokeWidth="2" strokeLinecap="round"
-            className="text-warm-white/40"
-            style={{ animation: 'scrollArrow 2s ease infinite' }}
-          >
-            <path d="M12 5v14M5 12l7 7 7-7" />
-          </svg>
-        </div>
-      </section>
-
-      {/* ===================== SECTION 2: THE RIDE ===================== */}
-      <section
-        className="relative overflow-hidden"
-        style={{ height: '250vh' }}
-        aria-label="The bicycle ride"
-      >
-        <div className="sticky top-0 h-screen overflow-hidden">
-          {/* Parallax Background */}
-          <ParallaxScene progress={rideProgress} />
-
-          {/* Particle Trail */}
-          <ParticleTrail
-            active={isScrolling && rideProgress > 0 && rideProgress < 1}
-            originX={typeof window !== 'undefined' ? (bikeX / 100) * window.innerWidth : 0}
-            originY={typeof window !== 'undefined' ? window.innerHeight * 0.78 : 0}
-          />
-
-          {/* Bicycle on the road */}
-          <div
-            className="absolute z-20"
-            style={{
-              left: `${bikeX}%`,
-              bottom: '12%',
-              transform: 'translateX(-50%) translateY(25%)',
-              willChange: 'left',
-              transition: isScrolling ? 'none' : 'left 0.3s ease-out',
-              ...wobbleStyle,
-            }}
-          >
-            <BicycleSVG
-              wheelRotation={wheelRotation.current}
-              fallen={bikeFallen}
-              scale={1.5}
-            />
-          </div>
-
-          {/* Keep moving message */}
-          {showKeepMoving && (
-            <div
-              className="absolute inset-0 z-30 flex items-center justify-center"
-              style={{ animation: 'fadeInUp 0.6s ease' }}
-            >
-              <p className="font-serif italic text-2xl text-sunset/80">
-                Keep moving...
-              </p>
-            </div>
-          )}
-
-          {/* Reverse easter egg */}
-          {showReverse && (
-            <div className="absolute top-8 left-1/2 -translate-x-1/2 z-30">
-              <p className="text-warm-white/40 text-sm">🔄 Going back?</p>
-            </div>
-          )}
-
-          {/* Quote words revealing */}
-          <div className="absolute top-[10%] left-0 right-0 z-20 text-center px-6">
-            <p className="font-serif italic text-3xl md:text-5xl lg:text-6xl text-warm-white leading-relaxed max-w-4xl mx-auto">
-              {QUOTE_WORDS.map((word, i) => (
-                <span
-                  key={i}
-                  className="inline-block mr-[0.3em] transition-all duration-700"
-                  style={{
-                    opacity: revealedWords.includes(word) ? 1 : 0,
-                    transform: revealedWords.includes(word) ? 'translateY(0)' : 'translateY(20px)',
-                    textShadow: i === QUOTE_WORDS.length - 1 && revealedWords.includes(word)
-                      ? '0 0 30px rgba(245, 166, 35, 0.4)'
-                      : 'none',
-                  }}
-                >
-                  {word.text}{' '}
-                </span>
-              ))}
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* ===================== SECTION 3: QUOTE SHOWCASE ===================== */}
-      <section
-        className="relative min-h-screen flex flex-col items-center justify-center overflow-hidden py-20"
-        style={{
-          background: `linear-gradient(180deg, 
-            ${showcaseProgress > 0 ? '#16213e' : '#0a0a1a'} 0%, 
-            ${showcaseProgress > 0.3 ? '#533483' : '#1a1a2e'} 40%, 
-            ${showcaseProgress > 0.5 ? '#e94560' : '#16213e'} 80%, 
-            ${showcaseProgress > 0.7 ? '#f5a623' : '#1a1a2e'} 100%)`,
-          transition: 'background 1s ease',
-        }}
-        aria-label="Complete quote display"
-      >
-        {/* Floating embers */}
-        {embers.map(e => (
-          <div
-            key={e.id}
-            className="absolute rounded-full pointer-events-none"
-            style={{
-              width: `${e.size}px`,
-              height: `${e.size}px`,
-              left: `${e.left}%`,
-              bottom: '10%',
-              background: `radial-gradient(circle, #f5a623, #e94560)`,
-              animation: `embers ${e.duration}s ease-in-out infinite`,
-              animationDelay: `${e.delay}s`,
-              opacity: showcaseProgress > 0.3 ? 0.6 : 0,
-              transition: 'opacity 1s',
-            }}
-          />
-        ))}
-
-        <div
-          className="relative z-10 text-center px-6 max-w-4xl mx-auto"
-          style={{
-            opacity: showcaseProgress > 0.2 ? 1 : 0,
-            transform: showcaseProgress > 0.2 ? 'translateY(0)' : 'translateY(40px)',
-            transition: 'all 0.8s ease',
-          }}
-        >
-          {/* Parked bicycle */}
-          <div className="flex justify-center mb-12" style={{ animation: 'glowPulse 3s ease-in-out infinite' }}>
-            <BicycleSVG wheelRotation={0} scale={2.2} />
-          </div>
-
-          {/* Full quote with interactive keywords */}
-          <blockquote className="font-serif italic text-3xl md:text-5xl lg:text-6xl leading-snug md:leading-snug text-warm-white mb-8">
-            <span>&ldquo;</span>
-            <span className="quote-word-life interactive cursor-pointer transition-all duration-300 hover:text-gold" tabIndex={0} role="button" aria-label="Life - hover for effect">Life</span>
-            {' '}is just like riding a{' '}
-            <span className="quote-word-bicycle interactive cursor-pointer transition-all duration-300 hover:text-gold" tabIndex={0} role="button" aria-label="Bicycle - hover for effect">bicycle</span>
-            .
-            <br className="hidden md:block" />{' '}
-            In order to{' '}
-            <span className="quote-word-balance interactive cursor-pointer transition-all duration-300 hover:text-sunset" tabIndex={0} role="button" aria-label="Balance - hover for effect">balance</span>
-            ,
-            <br className="hidden md:block" />{' '}
-            you must keep{' '}
-            <span className="quote-word-moving interactive cursor-pointer transition-all duration-300 hover:text-gold" tabIndex={0} role="button" aria-label="Moving - hover for effect">moving</span>
-            .&rdquo;
-          </blockquote>
-
-          <p
-            className="text-gold text-lg md:text-xl font-sans font-light tracking-wide"
-            style={{
-              opacity: showcaseProgress > 0.5 ? 1 : 0,
-              transition: 'opacity 0.6s ease 0.3s',
-            }}
-          >
-            — Albert Einstein
-          </p>
-          <p
-            className="text-warm-white/30 text-xs mt-2 font-sans"
-            style={{
-              opacity: showcaseProgress > 0.6 ? 1 : 0,
-              transition: 'opacity 0.6s ease 0.5s',
-            }}
-          >
-            From a letter to his son Eduard, February 5, 1930
-          </p>
-        </div>
-      </section>
-
-      {/* ===================== SECTION 4: BREAKDOWN CARDS ===================== */}
-      <section
-        className="relative py-24"
-        style={{
-          background: 'linear-gradient(180deg, #0a0a1a 0%, #1a1a2e 100%)',
-          opacity: cardsProgress > 0 ? 1 : 0.5,
-          transition: 'opacity 0.5s',
-        }}
-        aria-label="Quote breakdown"
-      >
-        <div className="text-center mb-16 px-6">
-          <h2 className="font-serif italic text-2xl md:text-4xl text-warm-white mb-4">
-            Four words. One truth.
-          </h2>
-          <div className="h-[1px] bg-gradient-to-r from-transparent via-gold/40 to-transparent max-w-xs mx-auto" />
-        </div>
-        <QuoteBreakdownCards />
-      </section>
-
-      {/* ===================== SECTION 5: BALANCE PLAYGROUND ===================== */}
-      <section
-        className="relative py-24"
-        style={{
-          background: 'linear-gradient(180deg, #1a1a2e 0%, #16213e 50%, #1a1a2e 100%)',
-        }}
-        aria-label="Interactive balance playground"
-      >
-        <div className="max-w-2xl mx-auto px-6">
-          <BalancePlayground />
-        </div>
-      </section>
-
-      {/* ===================== SECTION 6: FOOTER ===================== */}
-      <section
-        style={{
-          background: 'linear-gradient(180deg, #1a1a2e 0%, #0a0a1a 100%)',
-        }}
-      >
-        <Footer />
-      </section>
-    </div>
-  );
-}
+    });
+  </script>
+</body>
+</html>
